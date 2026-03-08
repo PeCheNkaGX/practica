@@ -1,20 +1,16 @@
-<!-- pages/resources.vue -->
 <template>
   <div>
     <v-row>
       <v-col>
         <h1 class="text-h4 mb-4">Управление ресурсами</h1>
         
-        <v-btn
-          color="primary"
-          prepend-icon="mdi-plus"
-          class="mb-4"
-          @click="openCreateDialog"
-        >
+        <v-btn color="primary" prepend-icon="mdi-plus" class="mb-4" @click="openCreateDialog">
           Добавить ресурс
         </v-btn>
         
-        <v-card>
+        <v-progress-linear v-if="loading" indeterminate></v-progress-linear>
+        
+        <v-card v-else>
           <v-table>
             <thead>
               <tr>
@@ -35,19 +31,8 @@
                 <td>{{ resource.responsiblePerson || '-' }}</td>
                 <td>{{ resource.description || '-' }}</td>
                 <td>
-                  <v-btn
-                    icon="mdi-pencil"
-                    size="small"
-                    variant="text"
-                    @click="editResource(resource)"
-                  ></v-btn>
-                  <v-btn
-                    icon="mdi-delete"
-                    size="small"
-                    variant="text"
-                    color="error"
-                    @click="deleteResource(resource.id)"
-                  ></v-btn>
+                  <v-btn icon="mdi-pencil" size="small" variant="text" @click="editResource(resource)"></v-btn>
+                  <v-btn icon="mdi-delete" size="small" variant="text" color="error" @click="deleteResource(resource.id)"></v-btn>
                 </td>
               </tr>
             </tbody>
@@ -56,52 +41,21 @@
       </v-col>
     </v-row>
 
-    <!-- Модальное окно для создания/редактирования -->
     <v-dialog v-model="dialog" max-width="500px">
       <v-card>
-        <v-card-title>
-          {{ editingResource ? 'Редактировать' : 'Создать' }} ресурс
-        </v-card-title>
-        
+        <v-card-title>{{ editingResource ? 'Редактировать' : 'Создать' }} ресурс</v-card-title>
         <v-card-text>
           <v-form ref="form" v-model="valid">
-            <v-select
-              v-model="formData.type"
-              :items="resourceTypes"
-              label="Тип ресурса"
-              required
-              :rules="[v => !!v || 'Обязательное поле']"
-            ></v-select>
-            
-            <v-text-field
-              v-model="formData.name"
-              label="Название"
-              required
-              :rules="[v => !!v || 'Обязательное поле']"
-            ></v-text-field>
-            
-            <v-text-field
-              v-model="formData.responsiblePerson"
-              label="Ответственный"
-            ></v-text-field>
-            
-            <v-textarea
-              v-model="formData.description"
-              label="Описание"
-            ></v-textarea>
+            <v-select v-model="formData.type" :items="resourceTypes" label="Тип ресурса" required :rules="[v => !!v || 'Обязательное поле']"></v-select>
+            <v-text-field v-model="formData.name" label="Название" required :rules="[v => !!v || 'Обязательное поле']"></v-text-field>
+            <v-text-field v-model="formData.responsiblePerson" label="Ответственный"></v-text-field>
+            <v-textarea v-model="formData.description" label="Описание"></v-textarea>
           </v-form>
         </v-card-text>
-        
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="closeDialog">Отмена</v-btn>
-          <v-btn
-            color="primary"
-            :disabled="!valid"
-            @click="saveResource"
-          >
-            Сохранить
-          </v-btn>
+          <v-btn color="primary" :disabled="!valid" :loading="saving" @click="saveResource">Сохранить</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -109,51 +63,21 @@
 </template>
 
 <script setup lang="ts">
-import type { Resource } from '~/types'
+import { useResourcesStore } from '~/stores/resources'
+import { useResourceHelpers } from '~/composables/useResourceHelpers'
 
-// Реактивные данные
-const resources = ref<Resource[]>([
-  // Копируем те же моковые данные
-  {
-    id: '1',
-    name: 'Иван Петров',
-    type: 'photographer',
-    responsiblePerson: 'Мария Иванова',
-    description: 'Штатный фотограф',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: '2',
-    name: 'Конференц-зал "Сириус"',
-    type: 'conference-room',
-    responsiblePerson: 'Петр Сидоров',
-    description: 'Вместимость 20 человек',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: '3',
-    name: 'Проектор Epson',
-    type: 'equipment',
-    responsiblePerson: 'Анна Смирнова',
-    description: 'Лазерный, 4K',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }
-])
+const resourcesStore = useResourcesStore()
+const { getResourceIcon, getResourceTypeName, resourceTypes } = useResourceHelpers()
+
+const { resources, loading } = storeToRefs(resourcesStore)
+
+await resourcesStore.fetchResources()
 
 const dialog = ref(false)
 const valid = ref(false)
-const editingResource = ref<Resource | null>(null)
+const saving = ref(false)
+const editingResource = ref<any>(null)
 const form = ref<any>(null)
-
-const resourceTypes = [
-  { title: 'Фотограф', value: 'photographer' },
-  { title: 'Конференц-зал', value: 'conference-room' },
-  { title: 'Оборудование', value: 'equipment' },
-  { title: 'Другое', value: 'other' }
-]
 
 const formData = ref({
   name: '',
@@ -162,28 +86,6 @@ const formData = ref({
   description: ''
 })
 
-// Функции для иконок и названий (копируем с главной)
-const getResourceIcon = (type: string) => {
-  const icons = {
-    photographer: 'mdi-camera',
-    'conference-room': 'mdi-sofa',
-    equipment: 'mdi-projector',
-    other: 'mdi-help-circle'
-  }
-  return icons[type as keyof typeof icons] || icons.other
-}
-
-const getResourceTypeName = (type: string) => {
-  const names = {
-    photographer: 'Фотограф',
-    'conference-room': 'Конференц-зал',
-    equipment: 'Оборудование',
-    other: 'Другое'
-  }
-  return names[type as keyof typeof names] || names.other
-}
-
-// Методы
 const openCreateDialog = () => {
   editingResource.value = null
   formData.value = {
@@ -195,7 +97,7 @@ const openCreateDialog = () => {
   dialog.value = true
 }
 
-const editResource = (resource: Resource) => {
+const editResource = (resource: any) => {
   editingResource.value = resource
   formData.value = {
     name: resource.name,
@@ -206,9 +108,9 @@ const editResource = (resource: Resource) => {
   dialog.value = true
 }
 
-const deleteResource = (id: string) => {
+const deleteResource = async (id: string) => {
   if (confirm('Вы уверены?')) {
-    resources.value = resources.value.filter(r => r.id !== id)
+    await resourcesStore.deleteResource(id)
   }
 }
 
@@ -220,27 +122,16 @@ const closeDialog = () => {
 const saveResource = async () => {
   if (!valid.value) return
   
-  if (editingResource.value) {
-    // Обновляем существующий
-    const index = resources.value.findIndex(r => r.id === editingResource.value!.id)
-    if (index !== -1) {
-      resources.value[index] = {
-        ...editingResource.value,
-        ...formData.value,
-        updatedAt: new Date().toISOString()
-      }
+  saving.value = true
+  try {
+    if (editingResource.value) {
+      await resourcesStore.updateResource(editingResource.value.id, formData.value)
+    } else {
+      await resourcesStore.createResource(formData.value)
     }
-  } else {
-    // Создаем новый
-    const newResource: Resource = {
-      id: Date.now().toString(), // временная генерация ID
-      ...formData.value,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }
-    resources.value.push(newResource)
+    closeDialog()
+  } finally {
+    saving.value = false
   }
-  
-  closeDialog()
 }
 </script>
