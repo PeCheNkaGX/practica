@@ -1,3 +1,13 @@
+export interface Resource {
+  id: string
+  name: string
+  type: 'photographer' | 'conference-room' | 'equipment' | 'other'
+  responsiblePerson?: string
+  description?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Booking {
   id: string
   resourceId: string

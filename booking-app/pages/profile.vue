@@ -1,4 +1,3 @@
-<!-- pages/profile.vue -->
 <template>
   <div>
     <v-row>
